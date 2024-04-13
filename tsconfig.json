@@ -3,8 +3,9 @@
     "outDir": "./lib",
     "target": "es2015",
     "declaration": true,
-    "isolatedModules": true
+    "emitDeclarationOnly": true,
+    "isolatedModules": true,
+    "moduleResolution": "bundler"
   },
-  "include": ["src"],
-  "strict": true
+  "include": ["src"]
 }

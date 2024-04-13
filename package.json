@@ -2,11 +2,26 @@
   "name": "save-svg-as-png",
   "version": "1.4.17",
   "description": "Convert a browser SVG to PNG or dataUri",
-  "main": "lib/saveSvgAsPng.js",
+  "type": "module",
+  "main": "lib/index.umd.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./lib/index.js",
+      "require": "./lib/index.umd.cjs"
+    }
+  },
+  "files": [
+    "/lib"
+  ],
   "scripts": {
-    "build": "babel src -d lib",
+    "build": "pnpm run /^build:.*/",
+    "build:tsc": "tsc --build",
+    "build:vite": "vite build",
+    "dev": "vite serve demo/",
     "prepublish": "npm run build",
-    "test": "node test.js"
+    "test": "node test.js",
+    "typecheck": "tsc --noEmit"
   },
   "repository": {
     "type": "git",
@@ -25,10 +40,11 @@
   },
   "homepage": "https://github.com/exupero/saveSvgAsPng",
   "devDependencies": {
-    "babel-cli": "^6.26.0",
-    "babel-preset-es2015": "^6.24.1",
-    "requirejs": "^2.3.5",
-    "tape": "^4.9.0"
-    "typescript": "^5.4.5"
+    "@typescript-eslint/eslint-plugin": "^7.6.0",
+    "@typescript-eslint/parser": "^7.6.0",
+    "eslint": "^8.57.0",
+    "tape": "^5.7.5",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.8"
   }
 }
