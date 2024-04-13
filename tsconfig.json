@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "outDir": "./lib",
+    "target": "es2015",
+    "declaration": true,
+    "isolatedModules": true
+  },
+  "include": ["src"],
+  "strict": true
+}

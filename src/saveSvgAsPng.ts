@@ -1,3 +1,108 @@
+interface Options {
+  /**
+   * backgroundColor — Creates a PNG with the given background color.
+   * @default 'transparent'
+   */
+  backgroundColor?: string;
+  /**
+   * canvg - If canvg is passed in, it will be used to write svg to canvas. This
+   * will allow support for Internet Explorer
+   */
+  canvg?: (
+    canvas: HTMLCanvasElement,
+    src: HTMLImageElement | string,
+  ) => unknown;
+  /**
+   * encoderOptions - A Number between 0 and 1 indicating image quality.
+   * @default 0.8
+   */
+  encoderOptions?: number;
+  /**
+   * encoderType - A DOMString indicating the image format.
+   * @default "image/png"
+   */
+  encoderType?: string;
+  /**
+   * excludeCss - Exclude all CSS rules
+   * @default false
+   */
+  excludeCss?: boolean;
+  /**
+   * excludeUnusedCss - Exclude CSS rules that don't match any elements in the
+   * SVG.
+   * @default false
+   */
+  excludeUnusedCss?: boolean;
+  /**
+   * fonts - A list of {text, url, format} objects the specify what fonts to
+   * inline in the SVG. Omitting this option defaults to auto-detecting font
+   * rules.
+   */
+  fonts?: FontInfo[];
+  /**
+   * height - Specify the image's height. Defaults to the viewbox's height if
+   * given, or the element's non-percentage height, or the element's bounding
+   * box's height, or the element's CSS height, or the computed style's height,
+   * or 0.
+   */
+  height?: number;
+  /**
+   * left - Specify the viewbox's left position. Defaults to 0.
+   * @default 0
+   */
+  left?: number;
+  /**
+   * modifyCss - A function that takes a CSS rule's selector and properties and
+   * returns a string of CSS. Supercedes selectorRemap and modifyStyle. Useful
+   * for modifying properties only for certain CSS selectors.
+   */
+  modifyCss?: (selector: string, properties: string) => string;
+  /**
+   * modifyStyle - A function that takes a CSS rule's properties and returns a
+   * string of CSS. Useful for modifying properties before they're inlined into
+   * the SVG.
+   */
+  modifyStyle?: (properties: string) => string;
+  /**
+   * responsive
+   * @default false
+   */
+  responsive?: boolean;
+  /**
+   * scale - Changes the resolution of the output PNG. Defaults to 1, the same
+   * dimensions as the source SVG.
+   * @default 1
+   */
+  scale?: number;
+  /**
+   * selectorRemap - A function that takes a CSS selector and produces its
+   * replacement in the CSS that's inlined into the SVG. Useful if your SVG
+   * style selectors are scoped by ancestor elements in your HTML document.
+   */
+  selectorRemap?: (selector: string) => string;
+  /**
+   * top - Specify the viewbox's top position. Defaults to 0.
+   * @default 0
+   */
+  top?: number;
+  /**
+   * width - Specify the image's width. Defaults to the viewbox's width if
+   * given, or the element's non-percentage width, or the element's bounding
+   * box's width, or the element's CSS width, or the computed style's width, or
+   * 0.
+   */
+  width?: number;
+}
+
+type El = HTMLElement | SVGElement;
+type FontInfo = { text: string, url: string, format: string }
+
+type DoneFn = (
+  img: string,
+  width: number,
+  height: number,
+) => unknown;
+
 const xmlNs = 'http://www.w3.org/2000/xmlns/';
 const xhtmlNs = 'http://www.w3.org/1999/xhtml';
 const svgNs = 'http://www.w3.org/2000/svg';
@@ -14,17 +119,17 @@ const fontFormats = {
 };
 
 const isElement = obj => obj instanceof HTMLElement || obj instanceof SVGElement;
-const requireDomNode = el => {
+const requireDomNode = (el: El) => {
   if (!isElement(el)) throw new Error(`an HTMLElement or SVGElement is required; got ${el}`);
 };
-const requireDomNodePromise = el =>
-  new Promise((resolve, reject) => {
+const requireDomNodePromise = (el: El) =>
+  new Promise<El>((resolve, reject) => {
     if (isElement(el)) resolve(el)
     else reject(new Error(`an HTMLElement or SVGElement is required; got ${el}`));
   })
-const isExternal = url => url && url.lastIndexOf('http',0) === 0 && url.lastIndexOf(window.location.host) === -1;
+const isExternal = (url: string) => url && url.lastIndexOf('http',0) === 0 && url.lastIndexOf(window.location.host) === -1;
 
-const getFontMimeTypeFromUrl = fontUrl => {
+const getFontMimeTypeFromUrl = (fontUrl: string) => {
   const formats = Object.keys(fontFormats)
     .filter(extension => fontUrl.indexOf(`.${extension}`) > 0)
     .map(extension => fontFormats[extension]);
@@ -40,22 +145,22 @@ const arrayBufferToBase64 = buffer => {
   return window.btoa(binary);
 }
 
-const getDimension = (el, clone, dim) => {
+const getDimension = (el: El, clone: El, dim: 'width' | 'height') => {
   const v =
-    (el.viewBox && el.viewBox.baseVal && el.viewBox.baseVal[dim]) ||
+    (el instanceof SVGSVGElement && el.viewBox.baseVal[dim]) ||
     (clone.getAttribute(dim) !== null && !clone.getAttribute(dim).match(/%$/) && parseInt(clone.getAttribute(dim))) ||
     el.getBoundingClientRect()[dim] ||
     parseInt(clone.style[dim]) ||
     parseInt(window.getComputedStyle(el).getPropertyValue(dim));
-  return typeof v === 'undefined' || v === null || isNaN(parseFloat(v)) ? 0 : v;
+  return typeof v === 'undefined' || v === null || isNaN(parseFloat(v as unknown as string)) ? 0 : v;
 };
 
-const getDimensions = (el, clone, width, height) => {
+const getDimensions = (el: El, clone: El, width: number, height: number) => {
   if (el.tagName === 'svg') return {
     width: width || getDimension(el, clone, 'width'),
     height: height || getDimension(el, clone, 'height')
   };
-  else if (el.getBBox) {
+  else if (el instanceof SVGGraphicsElement && el.getBBox) {
     const {x, y, width, height} = el.getBBox();
     return {
       width: x + width,
@@ -64,16 +169,16 @@ const getDimensions = (el, clone, width, height) => {
   }
 };
 
-const reEncode = data =>
+const reEncode = (data: string | number | boolean) =>
   decodeURIComponent(
     encodeURIComponent(data)
       .replace(/%([0-9A-F]{2})/g, (match, p1) => {
-        const c = String.fromCharCode(`0x${p1}`);
+        const c = String.fromCharCode(parseInt(p1, 16));
         return c === '%' ? '%25' : c;
       })
   );
 
-const uriToBlob = uri => {
+const uriToBlob = (uri: string) => {
   const byteString = window.atob(uri.split(',')[1]);
   const mimeString = uri.split(',')[0].split(':')[1].split(';')[0]
   const buffer = new ArrayBuffer(byteString.length);
@@ -84,7 +189,7 @@ const uriToBlob = uri => {
   return new Blob([buffer], {type: mimeString});
 };
 
-const query = (el, selector) => {
+const query = (el: El, selector: string) => {
   if (!selector) return;
   try {
     return el.querySelector(selector) || el.parentNode && el.parentNode.querySelector(selector);
@@ -93,7 +198,7 @@ const query = (el, selector) => {
   }
 };
 
-const detectCssFont = (rule, href) => {
+const detectCssFont = (rule: CSSRule, href: string) => {
   // Match CSS font-face rules to external links.
   // @font-face {
   //   src: local('Abel'), url(https://fonts.gstatic.com/s/abel/v6/UzN-iejR1VoXU2Oc-7LsbvesZW2xOQ-xsNqO47m55DA.woff2);
@@ -112,7 +217,7 @@ const detectCssFont = (rule, href) => {
   };
 };
 
-const inlineImages = el => Promise.all(
+const inlineImages = (el: El): Promise<(boolean | null)[]> => Promise.all(
   Array.from(el.querySelectorAll('image')).map(image => {
     let href = image.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || image.getAttribute('href');
     if (!href) return Promise.resolve(null);
@@ -137,7 +242,7 @@ const inlineImages = el => Promise.all(
 );
 
 const cachedFonts = {};
-const inlineFonts = fonts => Promise.all(
+const inlineFonts = (fonts: FontInfo[]) => Promise.all(
   fonts.map(font =>
     new Promise((resolve, reject) => {
       if (cachedFonts[font.url]) return resolve(cachedFonts[font.url]);
@@ -167,9 +272,9 @@ const inlineFonts = fonts => Promise.all(
   )
 ).then(fontCss => fontCss.filter(x => x).join(''));
 
-let cachedRules = null;
+let cachedRules: { rules?: CSSRuleList, href?: string }[] = []
 const styleSheetRules = () => {
-  if (cachedRules) return cachedRules;
+  if (cachedRules.length) return cachedRules;
   return cachedRules = Array.from(document.styleSheets).map(sheet => {
     try {
       return {rules: sheet.cssRules, href: sheet.href};
@@ -180,7 +285,7 @@ const styleSheetRules = () => {
   });
 };
 
-const inlineCss = (el, options) => {
+const inlineCss = (el: El, options: Options) => {
   const {
     selectorRemap,
     modifyStyle,
@@ -199,7 +304,7 @@ const inlineCss = (el, options) => {
   styleSheetRules().forEach(({rules, href}) => {
     if (!rules) return;
     Array.from(rules).forEach(rule => {
-      if (typeof rule.style != 'undefined') {
+      if (rule instanceof CSSStyleRule && typeof rule.style != 'undefined') {
         if (query(el, rule.selectorText)) css.push(generateCss(rule.selectorText, rule.style.cssText));
         else if (detectFonts && rule.cssText.match(/^@font-face/)) {
           const font = detectCssFont(rule, href);
@@ -215,12 +320,12 @@ const inlineCss = (el, options) => {
 };
 
 const downloadOptions = () => {
-  if (!navigator.msSaveOrOpenBlob && !('download' in document.createElement('a'))) {
+  if ((!('msSaveOrOpenBlob' in navigator) || !navigator.msSaveOrOpenBlob) && !('download' in document.createElement('a'))) {
     return {popup: window.open()};
   }
 };
 
-const prepareSvg = (el, options, done) => {
+const prepareSvg = (el: El, options?: Options, done?: DoneFn) => {
   requireDomNode(el);
   const {
     left = 0,
@@ -233,12 +338,12 @@ const prepareSvg = (el, options, done) => {
   } = options || {};
 
   return inlineImages(el).then(() => {
-    let clone = el.cloneNode(true);
+    let clone = el.cloneNode(true) as El;
     clone.style.backgroundColor = (options || {}).backgroundColor || el.style.backgroundColor;
     const {width, height} = getDimensions(el, clone, w, h);
 
     if (el.tagName !== 'svg') {
-      if (el.getBBox) {
+      if (el instanceof SVGGraphicsElement && el.getBBox) {
         if (clone.getAttribute('transform') != null) {
           clone.setAttribute('transform', clone.getAttribute('transform').replace(/translate\(.*?\)/, ''));
         }
@@ -261,8 +366,8 @@ const prepareSvg = (el, options, done) => {
       clone.removeAttribute('height');
       clone.setAttribute('preserveAspectRatio', 'xMinYMin meet');
     } else {
-      clone.setAttribute('width', width * scale);
-      clone.setAttribute('height', height * scale);
+      clone.setAttribute('width', String(width * scale));
+      clone.setAttribute('height', String(height * scale));
     }
 
     Array.from(clone.querySelectorAll('foreignObject > *')).forEach(foreignObject => {
@@ -296,7 +401,7 @@ const prepareSvg = (el, options, done) => {
   });
 };
 
-const svgAsDataUri = (el, options, done) => {
+const svgAsDataUri = (el: El, options?: Options, done?: DoneFn) => {
   requireDomNode(el);
   return prepareSvg(el, options)
     .then(({src, width, height}) => {
@@ -308,7 +413,7 @@ const svgAsDataUri = (el, options, done) => {
     });
 };
 
-const svgAsPngUri = (el, options, done) => {
+const svgAsPngUri = (el: El, options?: Options, done?: DoneFn) => {
   requireDomNode(el);
   const {
     encoderType = 'image/png',
@@ -330,10 +435,11 @@ const svgAsPngUri = (el, options, done) => {
     if (canvg) canvg(canvas, src);
     else context.drawImage(src, 0, 0);
 
-    let png;
+    let png: string;
     try {
       png = canvas.toDataURL(encoderType, encoderOptions);
     } catch (e) {
+      // @ts-ignore
       if ((typeof SecurityError !== 'undefined' && e instanceof SecurityError) || e.name === 'SecurityError') {
         console.error('Rendered SVG images cannot be downloaded in this browser.');
         return;
@@ -345,7 +451,7 @@ const svgAsPngUri = (el, options, done) => {
 
   if (canvg) return prepareSvg(el, options).then(convertToPng);
   else return svgAsDataUri(el, options).then(uri => {
-    return new Promise((resolve, reject) => {
+    return new Promise<string>((resolve, reject) => {
       const image = new Image();
       image.onload = () => resolve(convertToPng({
         src: image,
@@ -360,7 +466,8 @@ const svgAsPngUri = (el, options, done) => {
   });
 };
 
-const download = (name, uri, options) => {
+const download = (name: string, uri: string, options?: { popup: Window }) => {
+  // @ts-ignore
   if (navigator.msSaveOrOpenBlob) navigator.msSaveOrOpenBlob(uriToBlob(uri), name);
   else {
     const saveLink = document.createElement('a');
@@ -387,14 +494,14 @@ const download = (name, uri, options) => {
   }
 };
 
-const saveSvg = (el, name, options) => {
+const saveSvg = (el: El, name: string, options?: Options) => {
   const downloadOpts = downloadOptions(); // don't inline, can't be async
   return requireDomNodePromise(el)
     .then(el => svgAsDataUri(el, options || {}))
     .then(uri => download(name, uri, downloadOpts));
 };
 
-const saveSvgAsPng = (el, name, options) => {
+const saveSvgAsPng = (el: El, name: string, options?: Options) => {
   const downloadOpts = downloadOptions(); // don't inline, can't be async
   return requireDomNodePromise(el)
     .then(el => svgAsPngUri(el, options || {}))
