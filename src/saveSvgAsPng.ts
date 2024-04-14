@@ -147,7 +147,7 @@ const arrayBufferToBase64 = buffer => {
 
 const getDimension = (el: El, clone: El, dim: 'width' | 'height') => {
   const v =
-    (el instanceof SVGSVGElement && el.viewBox.baseVal[dim]) ||
+    (el instanceof SVGSVGElement && el.viewBox.baseVal?.[dim]) ||
     (clone.getAttribute(dim) !== null && !clone.getAttribute(dim).match(/%$/) && parseInt(clone.getAttribute(dim))) ||
     el.getBoundingClientRect()[dim] ||
     parseInt(clone.style[dim]) ||
@@ -371,7 +371,8 @@ const prepareSvg = (el: El, options?: Options, done?: DoneFn) => {
     }
 
     Array.from(clone.querySelectorAll('foreignObject > *')).forEach(foreignObject => {
-      foreignObject.setAttributeNS(xmlNs, 'xmlns', foreignObject.tagName === 'svg' ? svgNs : xhtmlNs);
+      if (!foreignObject.getAttribute('xmlns'))
+        foreignObject.setAttributeNS(xmlNs, 'xmlns', foreignObject.tagName === 'svg' ? svgNs : xhtmlNs);
     });
 
     if (excludeCss) {
