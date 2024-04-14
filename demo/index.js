@@ -1,3 +1,6 @@
+/* global $ */
+import { saveSvgAsPng, svgAsPngUri } from "../src/index"
+
 function handleFileSelect(evt) {
   const $el = $('#filereader');
   const files = evt.target.files;

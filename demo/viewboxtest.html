@@ -402,8 +402,10 @@ angular.module("ngRadialGauge",[]).directive('ngRadialGauge', ['$window', '$time
  }]);
 
     </script>
-    <script src=saveSvgAsPng.js></script>
-    <script>
+    <script type="module">
+    import { svgAsDataUri } from '../src/index';
+    import * as xzz from '../src/index';
+    console.log(typeof xzz)
     angular.module('RadialGaugeDemo', [
       'ngRadialGauge'
     ]);
