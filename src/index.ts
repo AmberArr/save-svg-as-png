@@ -47,8 +47,8 @@ interface Options {
    */
   height?: number;
   /**
-   * left - Specify the viewbox's left position. Defaults to 0.
-   * @default 0
+   * left - Specify the viewbox's left position. Defaults to the viewbox's x if
+   * given, or 0.
    */
   left?: number;
   /**
@@ -81,8 +81,8 @@ interface Options {
    */
   selectorRemap?: (selector: string) => string;
   /**
-   * top - Specify the viewbox's top position. Defaults to 0.
-   * @default 0
+   * top - Specify the viewbox's top position. Defaults to the viewbox's y if
+   * given, or 0.
    */
   top?: number;
   /**
@@ -156,20 +156,33 @@ const getDimension = (el: El, clone: El, dim: 'width' | 'height') => {
   return typeof v === 'undefined' || v === null || isNaN(parseFloat(v as unknown as string)) ? 0 : v;
 };
 
-const getDimensions = (el: El, clone: El, width?: number, height?: number) => {
-  if (el.tagName === 'svg') return {
-    width: width || getDimension(el, clone, 'width'),
-    height: height || getDimension(el, clone, 'height')
+interface Rect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+const getDimensions = (el: El, clone: El, options: Partial<Rect>) => {
+  // @ts-ignore
+  const viewBox: SVGRect | null | undefined = el?.viewBox?.baseVal;
+  const ret: Rect = {
+    left: viewBox?.x ?? 0,
+    top: viewBox?.y ?? 0,
+    width: viewBox?.width ?? 0,
+    height: viewBox?.height ?? 0,
+    ...options,
   };
-  else if (el instanceof SVGGraphicsElement && el.getBBox) {
+  if (ret.width && ret.height) return ret;
+  if (el.tagName === 'svg') {
+    ret.width = getDimension(el, clone, 'width');
+    ret.height = getDimension(el, clone, 'height');
+  } else if (el instanceof SVGGraphicsElement && el.getBBox) {
     const {x, y, width, height} = el.getBBox();
-    return {
-      width: x + width,
-      height: y + height
-    };
-  } else {
-    return { width: 0, height: 0 }
+    ret.width = x + width;
+    ret.height = y + height;
   }
+  return ret;
 };
 
 const reEncode = (data: string | number | boolean) =>
@@ -331,10 +344,6 @@ const downloadOptions = () => {
 const prepareSvg = (el: El, options?: Options, done?: DoneFn) => {
   requireDomNode(el);
   const {
-    left = 0,
-    top = 0,
-    width: w,
-    height: h,
     scale = 1,
     responsive = false,
     excludeCss = false,
@@ -343,7 +352,7 @@ const prepareSvg = (el: El, options?: Options, done?: DoneFn) => {
   return inlineImages(el).then(() => {
     let clone = el.cloneNode(true) as El;
     clone.style.backgroundColor = (options || {}).backgroundColor || el.style.backgroundColor;
-    const {width, height} = getDimensions(el, clone, w, h);
+    const {left, top, width, height} = getDimensions(el, clone, options || {});
 
     if (el.tagName !== 'svg') {
       if (el instanceof SVGGraphicsElement) {
