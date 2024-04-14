@@ -10,7 +10,7 @@ interface Options {
    */
   canvg?: (
     canvas: HTMLCanvasElement,
-    src: HTMLImageElement | string,
+    src: CanvasImageSource | string,
   ) => unknown;
   /**
    * encoderOptions - A Number between 0 and 1 indicating image quality.
@@ -118,7 +118,7 @@ const fontFormats = {
   svg: 'image/svg+xml'
 };
 
-const isElement = obj => obj instanceof HTMLElement || obj instanceof SVGElement;
+const isElement = (obj: El) => obj instanceof HTMLElement || obj instanceof SVGElement;
 const requireDomNode = (el: El) => {
   if (!isElement(el)) throw new Error(`an HTMLElement or SVGElement is required; got ${el}`);
 };
@@ -131,14 +131,15 @@ const isExternal = (url: string) => url && url.lastIndexOf('http',0) === 0 && ur
 
 const getFontMimeTypeFromUrl = (fontUrl: string) => {
   const formats = Object.keys(fontFormats)
-    .filter(extension => fontUrl.indexOf(`.${extension}`) > 0)
-    .map(extension => fontFormats[extension]);
+    .filter((extension) => fontUrl.indexOf(`.${extension}`) > 0)
+    .map(extension => fontFormats[extension as keyof (typeof fontFormats)]);
   if (formats) return formats[0];
   console.error(`Unknown font format for ${fontUrl}. Fonts may not be working correctly.`);
   return 'application/octet-stream';
 };
 
-const arrayBufferToBase64 = buffer => {
+// eslint-disable-next-line
+const arrayBufferToBase64 = (buffer: any) => {
   let binary = '';
   const bytes = new Uint8Array(buffer);
   for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
@@ -148,14 +149,14 @@ const arrayBufferToBase64 = buffer => {
 const getDimension = (el: El, clone: El, dim: 'width' | 'height') => {
   const v =
     (el instanceof SVGSVGElement && el.viewBox.baseVal?.[dim]) ||
-    (clone.getAttribute(dim) !== null && !clone.getAttribute(dim).match(/%$/) && parseInt(clone.getAttribute(dim))) ||
+    (clone.getAttribute(dim) !== null && !clone.getAttribute(dim)?.match(/%$/) && parseInt(clone.getAttribute(dim)!)) ||
     el.getBoundingClientRect()[dim] ||
     parseInt(clone.style[dim]) ||
     parseInt(window.getComputedStyle(el).getPropertyValue(dim));
   return typeof v === 'undefined' || v === null || isNaN(parseFloat(v as unknown as string)) ? 0 : v;
 };
 
-const getDimensions = (el: El, clone: El, width: number, height: number) => {
+const getDimensions = (el: El, clone: El, width?: number, height?: number) => {
   if (el.tagName === 'svg') return {
     width: width || getDimension(el, clone, 'width'),
     height: height || getDimension(el, clone, 'height')
@@ -166,6 +167,8 @@ const getDimensions = (el: El, clone: El, width: number, height: number) => {
       width: x + width,
       height: y + height
     };
+  } else {
+    return { width: 0, height: 0 }
   }
 };
 
@@ -217,14 +220,14 @@ const detectCssFont = (rule: CSSRule, href: string) => {
   };
 };
 
-const inlineImages = (el: El): Promise<(boolean | null)[]> => Promise.all(
+const inlineImages = (el: El) => Promise.all(
   Array.from(el.querySelectorAll('image')).map(image => {
     let href = image.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || image.getAttribute('href');
     if (!href) return Promise.resolve(null);
     if (isExternal(href)) {
       href += (href.indexOf('?') === -1 ? '?' : '&') + 't=' + new Date().valueOf();
     }
-    return new Promise((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject) => {
       const canvas = document.createElement('canvas');
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -233,7 +236,7 @@ const inlineImages = (el: El): Promise<(boolean | null)[]> => Promise.all(
       img.onload = () => {
         canvas.width = img.width;
         canvas.height = img.height;
-        canvas.getContext('2d').drawImage(img, 0, 0);
+        canvas.getContext('2d')!.drawImage(img, 0, 0);
         image.setAttributeNS('http://www.w3.org/1999/xlink', 'href', canvas.toDataURL('image/png'));
         resolve(true);
       };
@@ -241,7 +244,7 @@ const inlineImages = (el: El): Promise<(boolean | null)[]> => Promise.all(
   })
 );
 
-const cachedFonts = {};
+const cachedFonts: Record<string, string | null> = {};
 const inlineFonts = (fonts: FontInfo[]) => Promise.all(
   fonts.map(font =>
     new Promise((resolve, reject) => {
@@ -272,7 +275,7 @@ const inlineFonts = (fonts: FontInfo[]) => Promise.all(
   )
 ).then(fontCss => fontCss.filter(x => x).join(''));
 
-let cachedRules: { rules?: CSSRuleList, href?: string }[] = []
+let cachedRules: { rules?: CSSRuleList | null, href?: string | null }[] = []
 const styleSheetRules = () => {
   if (cachedRules.length) return cachedRules;
   return cachedRules = Array.from(document.styleSheets).map(sheet => {
@@ -285,7 +288,7 @@ const styleSheetRules = () => {
   });
 };
 
-const inlineCss = (el: El, options: Options) => {
+const inlineCss = (el: El, options?: Options) => {
   const {
     selectorRemap,
     modifyStyle,
@@ -298,11 +301,11 @@ const inlineCss = (el: El, options: Options) => {
     const props = modifyStyle ? modifyStyle(properties) : properties;
     return `${sel}{${props}}\n`;
   });
-  const css = [];
+  const css: string[] = [];
   const detectFonts = typeof fonts === 'undefined';
   const fontList = fonts || [];
   styleSheetRules().forEach(({rules, href}) => {
-    if (!rules) return;
+    if (!rules || !href) return;
     Array.from(rules).forEach(rule => {
       if (rule instanceof CSSStyleRule && typeof rule.style != 'undefined') {
         if (query(el, rule.selectorText)) css.push(generateCss(rule.selectorText, rule.style.cssText));
@@ -321,7 +324,7 @@ const inlineCss = (el: El, options: Options) => {
 
 const downloadOptions = () => {
   if ((!('msSaveOrOpenBlob' in navigator) || !navigator.msSaveOrOpenBlob) && !('download' in document.createElement('a'))) {
-    return {popup: window.open()};
+    return {popup: window.open()!};
   }
 };
 
@@ -343,16 +346,16 @@ const prepareSvg = (el: El, options?: Options, done?: DoneFn) => {
     const {width, height} = getDimensions(el, clone, w, h);
 
     if (el.tagName !== 'svg') {
-      if (el instanceof SVGGraphicsElement && el.getBBox) {
-        if (clone.getAttribute('transform') != null) {
-          clone.setAttribute('transform', clone.getAttribute('transform').replace(/translate\(.*?\)/, ''));
+      if (el instanceof SVGGraphicsElement) {
+        const transform = clone.getAttribute('transform');
+        if (transform != null) {
+          clone.setAttribute('transform', transform.replace(/translate\(.*?\)/, ''));
         }
         const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
         svg.appendChild(clone);
         clone = svg;
       } else {
-        console.error('Attempted to render non-SVG element', el);
-        return;
+        throw new Error('Attempted to render non-SVG element\n' + el.toString());
       }
     }
 
@@ -380,7 +383,7 @@ const prepareSvg = (el: El, options?: Options, done?: DoneFn) => {
       outer.appendChild(clone);
       const src = outer.innerHTML;
       if (typeof done === 'function') done(src, width, height);
-      else return {src, width, height};
+      return {src, width, height};
     } else {
       return inlineCss(el, options).then(css => {
         const style = document.createElement('style');
@@ -396,7 +399,7 @@ const prepareSvg = (el: El, options?: Options, done?: DoneFn) => {
         const src = outer.innerHTML.replace(/NS\d+:href/gi, 'xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href');
 
         if (typeof done === 'function') done(src, width, height);
-        else return {src, width, height};
+        return {src, width, height};
       });
     }
   });
@@ -422,9 +425,13 @@ const svgAsPngUri = (el: El, options?: Options, done?: DoneFn) => {
     canvg
   } = options || {};
 
-  const convertToPng = ({src, width, height}) => {
+  const convertToPng = ({ src, width, height }: {
+    src: HTMLImageElement | string,
+    width: number,
+    height: number
+  }) => {
     const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d')!;
     const pixelRatio = window.devicePixelRatio || 1;
 
     canvas.width = width * pixelRatio;
@@ -434,7 +441,7 @@ const svgAsPngUri = (el: El, options?: Options, done?: DoneFn) => {
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
     if (canvg) canvg(canvas, src);
-    else context.drawImage(src, 0, 0);
+    else context.drawImage(src as HTMLImageElement, 0, 0);
 
     let png: string;
     try {
@@ -442,8 +449,7 @@ const svgAsPngUri = (el: El, options?: Options, done?: DoneFn) => {
     } catch (e) {
       // @ts-ignore
       if ((typeof SecurityError !== 'undefined' && e instanceof SecurityError) || e.name === 'SecurityError') {
-        console.error('Rendered SVG images cannot be downloaded in this browser.');
-        return;
+        throw new Error( 'Rendered SVG images cannot be downloaded in this browser.');
       } else throw e;
     }
     if (typeof done === 'function') done(png, canvas.width, canvas.height);
@@ -454,11 +460,13 @@ const svgAsPngUri = (el: El, options?: Options, done?: DoneFn) => {
   else return svgAsDataUri(el, options).then(uri => {
     return new Promise<string>((resolve, reject) => {
       const image = new Image();
-      image.onload = () => resolve(convertToPng({
-        src: image,
-        width: image.width,
-        height: image.height
-      }));
+      image.onload = () => {
+        resolve(convertToPng({
+          src: image,
+          width: image.width,
+          height: image.height
+        }));
+      }
       image.onerror = () => {
         reject(`There was an error loading the data URI as an image on the following SVG\n${window.atob(uri.slice(26))}Open the following link to see browser's diagnosis\n${uri}`);
       }
