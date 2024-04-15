@@ -250,7 +250,9 @@ const inlineImages = (el: El) => Promise.all(
         canvas.width = img.width;
         canvas.height = img.height;
         canvas.getContext('2d')!.drawImage(img, 0, 0);
-        image.setAttributeNS('http://www.w3.org/1999/xlink', 'href', canvas.toDataURL('image/png'));
+        const dataURL = canvas.toDataURL('image/png');
+        image.setAttribute('href', dataURL);
+        image.setAttributeNS('http://www.w3.org/1999/xlink', 'href', dataURL);
         resolve(true);
       };
     });
