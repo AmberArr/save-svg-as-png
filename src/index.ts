@@ -134,6 +134,7 @@ const requireDomNodePromise = (el: El) =>
     else reject(new Error(`an HTMLElement or SVGElement is required; got ${el}`));
   })
 const isExternal = (url: string) => url && url.lastIndexOf('http',0) === 0 && url.lastIndexOf(window.location.host) === -1;
+const isInlined = (url: string) => url && url.startsWith('data:');
 
 const getFontMimeTypeFromUrl = (fontUrl: string) => {
   const formats = Object.keys(fontFormats)
@@ -243,6 +244,7 @@ const inlineImages = (el: El) => Promise.all(
   Array.from(el.querySelectorAll('image')).map(image => {
     let href = image.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || image.getAttribute('href');
     if (!href) return Promise.resolve(null);
+    if (isInlined(href)) Promise.resolve(true);
     if (isExternal(href)) {
       href += (href.indexOf('?') === -1 ? '?' : '&') + 't=' + new Date().valueOf();
     }
