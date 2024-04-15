@@ -40,10 +40,10 @@ interface Options {
    */
   fonts?: FontInfo[];
   /**
-   * height - Specify the image's height. Defaults to the viewbox's height if
-   * given, or the element's non-percentage height, or the element's bounding
-   * box's height, or the element's CSS height, or the computed style's height,
-   * or 0.
+   * height - Specify the image's height, and specify viewBox's height if
+   * preserveViewBox is false. Defaults to the viewbox's height if given, or
+   * the element's non-percentage height, or the element's bounding box's
+   * height, or the element's CSS height, or the computed style's height, or 0.
    */
   height?: number;
   /**
@@ -63,6 +63,12 @@ interface Options {
    * the SVG.
    */
   modifyStyle?: (properties: string) => string;
+  /**
+   * preserveViewBox - Preserves the original viewBox if given. Effectively
+   * cause `left` and `top` to be ignored.
+   * @default false
+   */
+  preserveViewBox?: boolean;
   /**
    * responsive
    * @default false
@@ -86,10 +92,10 @@ interface Options {
    */
   top?: number;
   /**
-   * width - Specify the image's width. Defaults to the viewbox's width if
-   * given, or the element's non-percentage width, or the element's bounding
-   * box's width, or the element's CSS width, or the computed style's width, or
-   * 0.
+   * width - Specify the image's width, and specify viewBox's width if
+   * preserveViewBox is false. Defaults to the viewbox's width if given, or the
+   * element's non-percentage width, or the element's bounding box's width, or
+   * the element's CSS width, or the computed style's width, or 0.
    */
   width?: number;
 }
@@ -349,6 +355,7 @@ const prepareSvg = (el: El, options?: Options, done?: DoneFn) => {
     scale = 1,
     responsive = false,
     excludeCss = false,
+    preserveViewBox = false,
   } = options || {};
 
   return inlineImages(el).then(() => {
@@ -371,7 +378,8 @@ const prepareSvg = (el: El, options?: Options, done?: DoneFn) => {
     }
 
     clone.setAttribute('version', '1.1');
-    clone.setAttribute('viewBox', [left, top, width, height].join(' '));
+    if (!preserveViewBox)
+      clone.setAttribute('viewBox', [left, top, width, height].join(' '));
     if (!clone.getAttribute('xmlns')) clone.setAttributeNS(xmlNs, 'xmlns', svgNs);
     if (!clone.getAttribute('xmlns:xlink')) clone.setAttributeNS(xmlNs, 'xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
